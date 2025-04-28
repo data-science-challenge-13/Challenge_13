@@ -15,35 +15,49 @@ BASE_URL = "https://islands.smp.uq.edu.au"
 
 
 def extract_resident_info(soup):
-    """Fixed pregnancy detection that works with Krisha's example"""
+    """Extracts resident information including first pregnancy details"""
     info = {
         "name": "Unknown",
-        "address": "Unknown",
-        "pregnancy_year": None,
-        "age_at_pregnancy": None,
+        "current_address": "Unknown",
+        "current_age": None,
+        "first_pregnancy_year": None,
+        "age_at_first_pregnancy": None,
         "pregnancy_details": "",
     }
 
-    # Name detection
-    name_tag = soup.find("h2") or soup.find("h1") or soup.find("title")
-    if name_tag:
-        info["name"] = name_tag.get_text(strip=True)
-        if name_tag.name == "title":
-            info["name"] = info["name"].split("|")[0].strip()
-        print(f"Found name: {info['name']}")
-    else:
-        print("Warning: Could not determine resident name")
+    # Name detection with multiple fallbacks
+    name_selectors = [
+        "h2.islander-name",
+        "h1.profile-title",
+        "div.profile-header h2",
+        "title",
+    ]
+
+    for selector in name_selectors:
+        try:
+            tag = soup.select_one(selector)
+            if tag:
+                info["name"] = tag.get_text(strip=True)
+                if selector == "title":
+                    info["name"] = info["name"].split("|")[0].strip()
+                break
+        except:
+            continue
+
+    if info["name"] == "Unknown":
         return None
 
-    # Process timeline
+    # Process timeline events
     current_age = None
-    current_address = "Unknown"
+    max_age = None
+    address_history = []
+    first_pregnancy_found = False
     timeline_rows = soup.select("div#t1 table tr")
 
     for row in timeline_rows:
         cells = row.find_all(["th", "td"])
 
-        # Age headers (single cell with colspan="2")
+        # Age headers
         if (
             len(cells) == 1
             and cells[0].get("colspan") == "2"
@@ -51,12 +65,11 @@ def extract_resident_info(soup):
         ):
             try:
                 current_age = int(cells[0].text.split()[1])
-                print(f"Current age: {current_age}")
+                max_age = current_age  # Track highest age for current age
             except:
                 current_age = None
             continue
 
-        # Need at least date and event cells
         if len(cells) < 2:
             continue
 
@@ -66,32 +79,33 @@ def extract_resident_info(soup):
         if "Moved to" in event_cell.text:
             try:
                 address = event_cell.text.split("Moved to")[1].split("with")[0].strip()
-                current_address = address
-                print(f"Current address: {current_address}")
+                address_history.append(address)
             except:
                 pass
 
-        # Detect pregnancy
-        if current_age and current_age < 18 and "Pregnant" in event_cell.text:
+        # Detect FIRST pregnancy only
+        if current_age and "Pregnant" in event_cell.text and not first_pregnancy_found:
             try:
-                date_parts = date_cell.text.split("/")
                 info.update(
                     {
-                        "pregnancy_year": (
-                            date_parts[1] if len(date_parts) == 2 else "Unknown"
+                        "first_pregnancy_year": (
+                            date_cell.text.split("/")[1]
+                            if "/" in date_cell.text
+                            else "Unknown"
                         ),
-                        "age_at_pregnancy": current_age,
+                        "age_at_first_pregnancy": current_age,
                         "pregnancy_details": event_cell.get_text(strip=True),
-                        "address": current_address,
                     }
                 )
-                print(f"Pregnancy found at age {current_age}")
-                return info
+                first_pregnancy_found = True
             except Exception as e:
                 print(f"Error processing pregnancy data: {str(e)}")
 
-    print("No pregnancy found under age 18")
-    return None
+    # Set final address and age
+    info["current_address"] = address_history[-1] if address_history else "Unknown"
+    info["current_age"] = max_age
+
+    return info if first_pregnancy_found else None
 
 
 def main():
@@ -100,13 +114,23 @@ def main():
     wait = WebDriverWait(driver, 20)
 
     with open(
-        "pregnancies_under_18.csv", mode="w", newline="", encoding="utf-8"
+        "arcadia_pregnancies.csv", mode="w", newline="", encoding="utf-8"
     ) as file:
         writer = csv.writer(file)
-        writer.writerow(["Name", "Address", "Year", "Age", "Details"])
+        writer.writerow(
+            [
+                "Name",
+                "Current Address",
+                "Current Age",
+                "First Pregnancy Year",
+                "Age at First Pregnancy",
+                "Pregnancy Details",
+            ]
+        )
 
         try:
             # Login
+            print("Logging in...")
             driver.get(f"{BASE_URL}/login.php")
             wait.until(EC.element_to_be_clickable((By.NAME, "email"))).send_keys(
                 USERNAME
@@ -115,57 +139,83 @@ def main():
                 PASSWORD + Keys.ENTER
             )
             wait.until(EC.url_contains("index.php"))
+            print("Login successful")
 
-            # Navigate to village
+            # Navigate to Arcadia
+            print("Going to Arcadia village...")
             driver.get(f"{BASE_URL}/village.php?Arcadia")
             wait.until(EC.presence_of_element_located((By.ID, "villagemap")))
 
-            # Get house indices
+            # Get all house indices
+            print("Finding houses...")
             house_indices = driver.execute_script(
                 """
                 let indices = [];
-                document.querySelectorAll('div.house--small img').forEach(img => {
-                    let match = (img.onclick?.toString() || '').match(/getHouse\((\d+)\)/);
+                document.querySelectorAll('div.house img').forEach(img => {
+                    let onclick = img.getAttribute('onclick') || '';
+                    let match = onclick.match(/getHouse\((\d+)\)/);
                     if (match) indices.push(parseInt(match[1]));
                 });
                 return indices;
             """
             )
+            print(f"Found {len(house_indices)} houses to process")
 
-            # Process houses
+            # Process each house
             for index in house_indices:
+                print(f"\nProcessing house {index}")
                 try:
+                    # Open house modal
                     driver.execute_script(f"getHouse({index})")
                     time.sleep(2)
 
+                    # Get all residents
                     residents = wait.until(
                         EC.presence_of_all_elements_located(
                             (By.CSS_SELECTOR, ".resident a")
                         )
                     )
                     resident_urls = [r.get_attribute("href") for r in residents]
+                    print(f"Found {len(resident_urls)} residents in house {index}")
 
+                    # Process each resident
                     for url in resident_urls:
+                        print(f"Processing resident: {url}")
                         driver.get(url)
-                        soup = BeautifulSoup(driver.page_source, "html.parser")
+                        time.sleep(1)  # Ensure page loads completely
 
+                        soup = BeautifulSoup(driver.page_source, "html.parser")
                         resident_info = extract_resident_info(soup)
-                        if resident_info:
+
+                        if (
+                            resident_info
+                            and "Arcadia" in resident_info["current_address"]
+                        ):
+                            print(f"Found pregnancy: {resident_info}")
                             writer.writerow(
                                 [
                                     resident_info["name"],
-                                    resident_info["address"],
-                                    resident_info["pregnancy_year"],
-                                    resident_info["age_at_pregnancy"],
+                                    resident_info["current_address"],
+                                    resident_info["current_age"],
+                                    resident_info["first_pregnancy_year"],
+                                    resident_info["age_at_first_pregnancy"],
                                     resident_info["pregnancy_details"],
                                 ]
                             )
-                            file.flush()
+                            file.flush()  # Write immediately
 
-                        driver.back()
+                        # Return to village
+                        driver.get(f"{BASE_URL}/village.php?Arcadia")
+                        wait.until(
+                            EC.presence_of_element_located((By.ID, "villagemap"))
+                        )
+
+                        # Reopen same house
+                        driver.execute_script(f"getHouse({index})")
                         time.sleep(1)
 
-                    driver.back()
+                    # Return to village after processing house
+                    driver.get(f"{BASE_URL}/village.php?Arcadia")
                     time.sleep(1)
 
                 except Exception as e:
@@ -173,9 +223,11 @@ def main():
                     driver.get(f"{BASE_URL}/village.php?Arcadia")
                     continue
 
+        except Exception as e:
+            print(f"Fatal error: {str(e)}")
         finally:
             driver.quit()
-            print("Scraping complete. Data saved to pregnancies_under_18.csv")
+            print("Scraping complete. Data saved to arcadia_pregnancies.csv")
 
 
 if __name__ == "__main__":
