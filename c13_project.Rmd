@@ -96,7 +96,7 @@ pregnancy_df %>%
   count(Generation) %>%
   ggplot(aes(x = Generation, y = n, fill = Generation)) +
   geom_col() +
-  geom_text(aes(label = n), vjust = -0.5) +  # ← Add count labels
+  geom_text(aes(label = n), vjust = -0.5) +  # Add count labels
   labs(
     title = "Total Number of People by Generation",
     x = "Generation",
