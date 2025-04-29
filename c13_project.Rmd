@@ -1,5 +1,137 @@
 ---
-title: "c13_project"
-output: html_document
-date: 2025-1-5
+title: "Islands Pregnancy"
+author: "Michaela Fox, Suwanee Li, Lucien Lin"
+date: 2025-04-28
+output:
+  github_document:
+    toc: true
 ---
+
+```{r}
+library(readr)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(tidyverse)
+library(rsample)
+```
+
+```{r}
+# Load data
+pregnancy_df <- read_csv("C:/Users/mfox/OneDrive - Olin College of Engineering/Data Science/datasciencefinal/Challenge_13/arcadia_pregnancies.csv")
+```
+
+```{r}
+# View Data
+pregnancy_df
+```
+
+```{r}
+max(pregnancy_df$`Current Age`, na.rm = TRUE)
+```
+
+```{r}
+glimpse(pregnancy_df)
+summary(pregnancy_df)
+```
+
+```{r}
+# Get rid of anything that isn't the address
+ pregnancy_df <- pregnancy_df %>%
+   mutate(
+     `Current Address` = str_extract(`Current Address`, "Arcadia\\s*\\d+")
+   )
+ 
+ pregnancy_df
+```
+
+```{r}
+# Check if Pregnancy details column is all the same information and if it is delete it
+pregnancy_df %>%
+  distinct(`Pregnancy Details`)
+
+pregnancy_df <- pregnancy_df %>%
+  filter(Name != "pregnancy details")
+```
+
+```{r}
+pregnancy_df <- pregnancy_df %>%
+  mutate(
+    Generation = case_when(
+      `Current Age` >= 78 ~ "Silent Generation",
+      `Current Age` >= 59 ~ "Baby Boomer",
+      `Current Age` >= 43 ~ "Gen X",
+      `Current Age` >= 27 ~ "Millennial",
+      `Current Age` >= 12 ~ "Gen Z",
+      TRUE ~ "Other"
+    )
+  )
+```
+
+```{r}
+# Summarize average age at first pregnancy by generation
+pregnancy_df %>%
+  group_by(Generation) %>%
+  summarise(
+    median_Age_First_Pregnancy = median(`Age at First Pregnancy`, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  ggplot(aes(x = Generation, y = median_Age_First_Pregnancy, fill = Generation)) +
+  geom_col() +
+  labs(
+    title = "Median Age at First Pregnancy by Generation",
+    x = "Generation",
+    y = "Median Age at First Pregnancy"
+  )
+```
+
+```{r}
+pregnancy_df %>%
+  ggplot(aes(x = `Age at First Pregnancy`, y = `Current Age`, color = Generation)) +
+  geom_point(alpha = 0.7, size = 1)
+```
+
+```{r}
+pregnancy_df %>%
+  count(Generation) %>%
+  ggplot(aes(x = Generation, y = n, fill = Generation)) +
+  geom_col() +
+  geom_text(aes(label = n), vjust = -0.5) +  # ← Add count labels
+  labs(
+    title = "Total Number of People by Generation",
+    x = "Generation",
+    y = "Count"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+```{r}
+pregnancy_df %>%
+  mutate(
+    Generation = case_when(
+      `Current Age` >= 78 ~ "Silent Generation",
+      `Current Age` >= 59 ~ "Baby Boomer",
+      `Current Age` >= 43 ~ "Gen X",
+      `Current Age` >= 27 ~ "Millennial",
+      `Current Age` >= 12 ~ "Gen Z",
+      TRUE ~ "Other"
+    )
+  ) %>%
+  ggplot(aes(x = Generation, y = `Age at First Pregnancy`, fill = Generation)) +
+  geom_boxplot() +
+  labs(
+    title = "Distribution of Age at First Pregnancy by Generation",
+    x = "Generation",
+    y = "Age at First Pregnancy"
+  )
+```
+
+```{r}
+# Get rid of silent generation because they make up less than 1% of the population
+pregnancy_df <- pregnancy_df %>%
+  filter(Generation != "Silent Generation")
+```
+
+```{r}
+```
