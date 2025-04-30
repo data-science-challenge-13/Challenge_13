@@ -7,6 +7,12 @@ output:
     toc: true
 ---
 
+*Topic:* The topic we chose is the effect of generational differences on age at first pregnancy. The question we wanted to answer was "How does an individual's generation influence the age at which they first become pregnant in the Islands?" We hypothesized that older people would have gotten pregnant at a younger age than younger generations.  
+
+# Setup
+
+<!-- ----------------------------------------------------------------------- -->
+
 ```{r}
 library(readr)
 library(dplyr)
@@ -15,6 +21,18 @@ library(ggplot2)
 library(tidyverse)
 library(rsample)
 ```
+
+# Background
+
+<!-- ----------------------------------------------------------------------- -->
+
+The islands are a virtual simulation made by the University of Queensland.  The simulation allows users to interact with, conduct consentual given tests on, and collect data on the individuals living on the island.
+
+# Data Collection Methods
+
+<!-- ----------------------------------------------------------------------- -->
+
+To collect our data, we designed a custom web scraper using Python libraries such as BeautifulSoup and Selenium. This scraper was used to extract information from Arcadia, a village within the Islands Simulation. Data collection took place on April 27, 2025, and focused on all currently pregnant individuals living in Arcadia. For each person, the scraper reliably gathered their name, current address, current age, the year of their first pregnancy, and their age at first pregnancy. Individuals were then grouped into generational categories based on age: 12–26 as Gen Z, 27–42 as Millennials, 43–58 as Gen X, and 59–77 as Baby Boomers. Individuals older than 77 were categorized as the Silent Generation and were determined to be unimportant to final results due to their small sample size. No individuals under the age of 12 were present in the dataset.
 
 ```{r}
 # Load data
