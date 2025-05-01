@@ -26,7 +26,7 @@ library(rsample)
 
 <!-- ----------------------------------------------------------------------- -->
 
-The islands are a virtual simulation made by the University of Queensland.  The simulation allows users to interact with, conduct consentual given tests on, and collect data on the individuals living on the island.
+The islands are a virtual simulation made by the University of Queensland.  The simulation allows users to interact with people on the islands, conduct tests on them (as long as you have consent), and collect data.
 
 # Data Collection Methods
 
@@ -87,8 +87,39 @@ pregnancy_df <- pregnancy_df %>%
 ```
 
 ```{r}
+pregnancy_df %>%
+  ggplot(aes(x = `Age at First Pregnancy`, y = `Current Age`, color = Generation)) +
+  geom_point(alpha = 0.7, size = 1)
+```
+
+```{r}
+# Count total number of people by generation in generational order
+pregnancy_df %>%
+  mutate(Generation = factor(Generation, levels = c("Silent Generation", "Baby Boomer", "Gen X", "Millennial", "Gen Z"))) %>%
+  count(Generation) %>%
+  ggplot(aes(x = Generation, y = n, fill = Generation)) +
+  geom_col() +
+  geom_text(aes(label = n), vjust = -0.5) +  # Add count labels
+  labs(
+    title = "Total Number of People by Generation",
+    x = "Generation",
+    y = "Count"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+```
+
+```{r}
+# Get rid of silent generation because they make up less than 1% of the population
+pregnancy_df <- pregnancy_df %>%
+  filter(Generation != "Silent Generation")
+```
+
+```{r}
 # Summarize average age at first pregnancy by generation
 pregnancy_df %>%
+  mutate(Generation = factor(Generation, levels = c("Silent Generation", "Baby Boomer", "Gen X", "Millennial", "Gen Z"))) %>%
   group_by(Generation) %>%
   summarise(
     median_Age_First_Pregnancy = median(`Age at First Pregnancy`, na.rm = TRUE),
@@ -101,12 +132,7 @@ pregnancy_df %>%
     x = "Generation",
     y = "Median Age at First Pregnancy"
   )
-```
 
-```{r}
-pregnancy_df %>%
-  ggplot(aes(x = `Age at First Pregnancy`, y = `Current Age`, color = Generation)) +
-  geom_point(alpha = 0.7, size = 1)
 ```
 
 ```{r}
@@ -143,13 +169,4 @@ pregnancy_df %>%
     x = "Generation",
     y = "Age at First Pregnancy"
   )
-```
-
-```{r}
-# Get rid of silent generation because they make up less than 1% of the population
-pregnancy_df <- pregnancy_df %>%
-  filter(Generation != "Silent Generation")
-```
-
-```{r}
 ```
