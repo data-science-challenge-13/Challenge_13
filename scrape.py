@@ -9,8 +9,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 
 # Configuration
-USERNAME = "mfox@olin.edu"
-PASSWORD = "Hfghdhdth1?"
+USERNAME = input("Enter your email address:")
+PASSWORD = input("Enter your password:")
 BASE_URL = "https://islands.smp.uq.edu.au"
 
 
